@@ -145,13 +145,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
     };
 
     const updatePhysics = (p: PlayerState, enemy: PlayerState, keys: Record<string, boolean>, isP1: boolean) => {
-        if (!gameState.current.gameActive) return;
-        if (p.actionState === ActionState.DEAD) return;
-
+        // NOTE: We allow physics to update even if gameActive is false, so players fall to ground.
+        
         // --- INPUT HANDLING ---
         // Cooldown management
         if (p.attackCooldown > 0) p.attackCooldown--;
-        if (p.energy < p.maxEnergy) p.energy += 0.1;
+        // Only regenerate energy if game is active
+        if (gameState.current.gameActive && p.energy < p.maxEnergy) p.energy += 0.1;
 
         // Reset state if animation finished (simplified frame timer logic)
         if (p.actionState === ActionState.ATTACKING && p.attackCooldown < 10) {
@@ -164,8 +164,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
             p.actionState = ActionState.IDLE;
         }
 
-        // Movement (Only if not in un-cancelable states like HIT)
-        const canMove = p.actionState !== ActionState.HIT;
+        // Movement (Only if not in un-cancelable states like HIT or DEAD, and Game is Active)
+        const canMove = p.actionState !== ActionState.HIT && 
+                        p.actionState !== ActionState.DEAD && 
+                        gameState.current.gameActive;
         
         if (canMove) {
             let dx = 0;
@@ -235,6 +237,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
                     p.attackCooldown = 20;
                 }
             }
+        } else {
+            // If we can't move, and game is over, ensure we aren't stuck running
+            if (!gameState.current.gameActive && p.actionState === ActionState.RUNNING) {
+                p.actionState = ActionState.IDLE;
+            }
         }
 
         // --- PHYSICS ---
@@ -255,8 +262,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
         if (p.x + p.width > CANVAS_WIDTH) { p.x = CANVAS_WIDTH - p.width; p.vx = 0; }
 
         // --- HIT DETECTION ---
-        // Simple AABB overlap check for attacks
-        if (p.actionState === ActionState.ATTACKING || p.actionState === ActionState.SPINJITZU) {
+        // Simple AABB overlap check for attacks (ONLY IF GAME ACTIVE)
+        if (gameState.current.gameActive && (p.actionState === ActionState.ATTACKING || p.actionState === ActionState.SPINJITZU)) {
             // Define active frames for hitbox
             const activeFrame = (p.actionState === ActionState.SPINJITZU) || (p.attackCooldown > 10 && p.attackCooldown < 20);
             
@@ -300,11 +307,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
     const endGame = async (winner: PlayerState, loser: PlayerState) => {
         gameState.current.gameActive = false;
         
-        // Let animation play out slightly
+        // Start generating commentary immediately so it's ready when the animation finishes
+        const commentaryPromise = getBattleCommentary(winner.color, loser.color, winner.hp);
+
+        // Let animation play out for 2 seconds (physics continues now)
         setTimeout(async () => {
-             const commentary = await getBattleCommentary(winner.color, loser.color, winner.hp);
+             let commentary = "";
+             try {
+                commentary = await commentaryPromise;
+             } catch (e) {
+                console.error("Failed to get commentary", e);
+                commentary = `${winner.name} wins the tournament!`;
+             }
              onGameOver(winner.name, commentary);
-        }, 1500);
+        }, 2000);
     };
 
     const drawPlayer = (p: PlayerState) => {
@@ -312,6 +328,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
         
         // Translation for easy flipping
         ctx.translate(p.x + p.width/2, p.y + p.height/2);
+        
+        // Handle Death Rotation (Visual effect for lying on ground)
+        if (p.actionState === ActionState.DEAD) {
+             // Move the pivot point down so when rotated, the side touches the ground
+             // The hitbox center is Ground - 45. The side (half-width) is 25.
+             // We want the side to be at Ground. So shift down by 45 - 25 = 20.
+             ctx.translate(0, 20); 
+             ctx.rotate(-p.facing * Math.PI / 2); // Rotate 90 degrees backwards
+        }
+        
         ctx.scale(p.facing, 1);
         
         // If Hit, flash white
@@ -383,9 +409,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
             // Eyes
             ctx.fillStyle = '#000';
             ctx.beginPath();
-            ctx.arc(3, -28, 2, 0, Math.PI*2); // Right eye (facing right)
-            ctx.arc(-3, -28, 2, 0, Math.PI*2);
-            ctx.fill();
+            // Dead eyes
+            if (p.actionState === ActionState.DEAD) {
+               // X eyes
+               ctx.lineWidth = 2;
+               ctx.strokeStyle = '#000';
+               ctx.beginPath();
+               // Right X
+               ctx.moveTo(1, -30); ctx.lineTo(5, -26);
+               ctx.moveTo(5, -30); ctx.lineTo(1, -26);
+               // Left X
+               ctx.moveTo(-5, -30); ctx.lineTo(-1, -26);
+               ctx.moveTo(-1, -30); ctx.lineTo(-5, -26);
+               ctx.stroke();
+            } else {
+               ctx.arc(3, -28, 2, 0, Math.PI*2); // Right eye (facing right)
+               ctx.arc(-3, -28, 2, 0, Math.PI*2);
+               ctx.fill();
+            }
             
             // Mask/Hood
             ctx.fillStyle = p.color;

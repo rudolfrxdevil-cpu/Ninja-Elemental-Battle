@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Ninja Elemental Battle</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -12,6 +12,9 @@
         background-color: #1a1a1a;
         color: white;
         overflow: hidden; /* Prevent scrolling during game */
+        touch-action: none; /* Prevent browser gestures */
+        -webkit-user-select: none;
+        user-select: none;
       }
       .ninja-font {
         font-family: 'Shojumaru', system-ui;

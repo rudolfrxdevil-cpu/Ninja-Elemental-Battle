@@ -20,6 +20,40 @@ interface GameCanvasProps {
   onGameOver: (winner: string, commentary: string) => void;
 }
 
+// Helper Component for Touch Buttons
+interface TouchButtonProps {
+  label: React.ReactNode;
+  onPress: (pressed: boolean) => void;
+  color?: string;
+  className?: string;
+}
+
+const TouchButton: React.FC<TouchButtonProps> = ({ label, onPress, color = "bg-gray-700", className = "" }) => {
+  const handleStart = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    onPress(true);
+  };
+  
+  const handleEnd = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    onPress(false);
+  };
+
+  return (
+    <button
+      className={`select-none touch-none rounded-xl ${color} bg-opacity-80 text-white font-bold flex items-center justify-center active:scale-90 active:bg-opacity-100 shadow-lg border-2 border-white/20 backdrop-blur-sm transition-transform ${className}`}
+      onTouchStart={handleStart}
+      onTouchEnd={handleEnd}
+      onMouseDown={handleStart}
+      onMouseUp={handleEnd}
+      onMouseLeave={handleEnd}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
+    >
+      {label}
+    </button>
+  );
+};
+
 const createPlayer = (x: number, color: NinjaColor, name: string, isAi: boolean = false, facing: 1 | -1 = 1): PlayerState => ({
   x,
   y: GROUND_Y - HITBOX_HEIGHT,
@@ -43,7 +77,8 @@ const createPlayer = (x: number, color: NinjaColor, name: string, isAi: boolean 
 const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hudState, setHudState] = useState<{ p1: PlayerState, p2: PlayerState } | null>(null);
-  
+  const [isMobile, setIsMobile] = useState(false);
+
   // Mutable game state in refs to avoid React render cycle in game loop
   const gameState = useRef({
     p1: createPlayer(200, playerColor, "Hero"),
@@ -52,6 +87,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
     gameActive: true,
     keys: {} as Record<string, boolean>,
   });
+
+  // Mobile Detection
+  useEffect(() => {
+    const checkMobile = () => {
+      const ua = navigator.userAgent;
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
+      setIsMobile(isMobileDevice);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Controls handler
   useEffect(() => {
@@ -68,6 +115,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
+
+  // Helper to bridge touch to keys
+  const setKey = (key: string, pressed: boolean) => {
+    gameState.current.keys[key] = pressed;
+  };
 
   // Main Game Loop
   useEffect(() => {
@@ -269,9 +321,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
 
         // --- NINJA DRAWING (LEGO STYLE) ---
         const legH = 25;
-        const torsoH = 35;
-        const headS = 25;
-
         // Spinjitzu Effect
         if (p.actionState === ActionState.SPINJITZU) {
              ctx.fillStyle = p.color;
@@ -448,7 +497,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
         drawParticles();
 
         // Sync State to React (throttled) for HUD
-        // We only really need to sync HP and Energy
         if (gameState.current.gameActive) {
             setHudState({
                 p1: { ...gameState.current.p1 },
@@ -468,14 +516,77 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
   }, [playerColor, onGameOver]);
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-black">
+    <div className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">
       <canvas
         ref={canvasRef}
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
-        className="max-w-full max-h-full shadow-2xl border-4 border-gray-800 rounded-lg"
+        className="max-w-full max-h-full shadow-2xl border-4 border-gray-800 rounded-lg object-contain"
       />
+      
       {hudState && <HUD p1={hudState.p1} p2={hudState.p2} />}
+
+      {/* Mobile Touch Controls */}
+      {isMobile && (
+        <div className="absolute inset-0 z-40 pointer-events-none flex flex-col justify-end pb-8 px-6 select-none">
+          <div className="flex justify-between items-end w-full">
+            
+            {/* Left Stick (Movement) */}
+            <div className="flex gap-4 pointer-events-auto">
+               <TouchButton 
+                 label={<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>} 
+                 onPress={(a) => setKey('a', a)} 
+                 className="w-20 h-20"
+               />
+               <TouchButton 
+                 label={<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>} 
+                 onPress={(a) => setKey('d', a)} 
+                 className="w-20 h-20"
+               />
+            </div>
+
+            {/* Right Buttons (Actions) */}
+            <div className="pointer-events-auto grid grid-cols-3 gap-4 mb-2">
+                 <div className="col-start-2">
+                     <TouchButton 
+                        label="JUMP" 
+                        color="bg-blue-600"
+                        onPress={(a) => setKey('w', a)} 
+                        className="w-20 h-20 text-xs tracking-widest"
+                     />
+                 </div>
+                 
+                 <div className="col-start-1 row-start-2">
+                     <TouchButton 
+                        label="PUNCH" 
+                        color="bg-red-600"
+                        onPress={(a) => setKey('f', a)} 
+                        className="w-20 h-20 text-xs tracking-widest"
+                     />
+                 </div>
+
+                 <div className="col-start-2 row-start-2">
+                     <TouchButton 
+                        label="KICK" 
+                        color="bg-orange-600"
+                        onPress={(a) => setKey('g', a)} 
+                        className="w-20 h-20 text-xs tracking-widest"
+                     />
+                 </div>
+
+                 <div className="col-start-3 row-start-1 row-span-2 flex items-center">
+                    <TouchButton 
+                        label="SPIN" 
+                        color="bg-purple-600"
+                        onPress={(a) => setKey('h', a)} 
+                        className="w-24 h-24 rounded-full text-sm font-black tracking-widest border-yellow-400 border-4 shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+                     />
+                 </div>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

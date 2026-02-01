@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { PlayerState, NinjaColor, ActionState, Particle } from '../types';
+import { PlayerState, NinjaColor, ActionState, Particle, Opponent } from '../types';
 import HUD from './HUD';
 import { getBattleCommentary } from '../services/geminiService';
 
@@ -17,6 +17,7 @@ const HITBOX_HEIGHT = 90;
 
 interface GameCanvasProps {
   playerColor: NinjaColor;
+  opponent: Opponent;
   onGameOver: (winner: string, commentary: string) => void;
 }
 
@@ -54,7 +55,7 @@ const TouchButton: React.FC<TouchButtonProps> = ({ label, onPress, color = "bg-g
   );
 };
 
-const createPlayer = (x: number, color: NinjaColor, name: string, isAi: boolean = false, facing: 1 | -1 = 1): PlayerState => ({
+const createPlayer = (x: number, color: string, name: string, isAi: boolean = false, facing: 1 | -1 = 1): PlayerState => ({
   x,
   y: GROUND_Y - HITBOX_HEIGHT,
   vx: 0,
@@ -74,15 +75,27 @@ const createPlayer = (x: number, color: NinjaColor, name: string, isAi: boolean 
   isAi,
 });
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, opponent, onGameOver }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hudState, setHudState] = useState<{ p1: PlayerState, p2: PlayerState } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Helper to get Ninja Name from color (simplified for P1)
+  const getPlayerName = (color: NinjaColor) => {
+      switch(color) {
+          case NinjaColor.RED: return "Kai";
+          case NinjaColor.BLUE: return "Jay";
+          case NinjaColor.GREEN: return "Lloyd";
+          case NinjaColor.BLACK: return "Cole";
+          case NinjaColor.WHITE: return "Zane";
+          default: return "Ninja";
+      }
+  }
+
   // Mutable game state in refs to avoid React render cycle in game loop
   const gameState = useRef({
-    p1: createPlayer(200, playerColor, "Hero"),
-    p2: createPlayer(CANVAS_WIDTH - 200, NinjaColor.BLACK, "Shadow", true, -1),
+    p1: createPlayer(200, playerColor, getPlayerName(playerColor)),
+    p2: createPlayer(CANVAS_WIDTH - 200, opponent.color, opponent.name, true, -1),
     particles: [] as Particle[],
     gameActive: true,
     keys: {} as Record<string, boolean>,
@@ -308,7 +321,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
         gameState.current.gameActive = false;
         
         // Start generating commentary immediately so it's ready when the animation finishes
-        const commentaryPromise = getBattleCommentary(winner.color, loser.color, winner.hp);
+        const commentaryPromise = getBattleCommentary(winner.name, loser.name, winner.hp);
 
         // Let animation play out for 2 seconds (physics continues now)
         setTimeout(async () => {
@@ -554,7 +567,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ playerColor, onGameOver }) => {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [playerColor, onGameOver]);
+  }, [playerColor, opponent, onGameOver]);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">

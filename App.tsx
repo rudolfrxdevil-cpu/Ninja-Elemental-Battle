@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { GameScreen, NinjaColor } from './types';
+import { GameScreen, NinjaColor, Opponent, OPPONENTS } from './types';
 import Menu from './components/Menu';
 import GameCanvas from './components/GameCanvas';
 
 const App: React.FC = () => {
   const [screen, setScreen] = useState<GameScreen>(GameScreen.MENU);
   const [selectedNinja, setSelectedNinja] = useState<NinjaColor>(NinjaColor.RED);
+  const [selectedOpponent, setSelectedOpponent] = useState<Opponent>(OPPONENTS[0]);
   const [winnerName, setWinnerName] = useState<string | null>(null);
   const [battleReport, setBattleReport] = useState<string>('');
 
-  const handleStartGame = (color: NinjaColor) => {
+  const handleStartGame = (color: NinjaColor, opponent: Opponent) => {
     setSelectedNinja(color);
+    setSelectedOpponent(opponent);
     setScreen(GameScreen.PLAYING);
   };
 
@@ -33,6 +35,7 @@ const App: React.FC = () => {
       {screen === GameScreen.PLAYING && (
         <GameCanvas 
           playerColor={selectedNinja} 
+          opponent={selectedOpponent}
           onGameOver={handleGameOver} 
         />
       )}

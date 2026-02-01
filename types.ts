@@ -12,6 +12,21 @@ export enum NinjaColor {
   WHITE = '#f3f4f6',  // Zane
 }
 
+export interface Opponent {
+  id: string;
+  name: string;
+  color: string;
+  element: string;
+}
+
+export const OPPONENTS: Opponent[] = [
+  { id: 'garmadon', name: 'Lord Garmadon', color: '#4c1d95', element: 'Destruction' },
+  { id: 'nadakhan', name: 'Nadakhan', color: '#9a3412', element: 'Djinn' },
+  { id: 'morro', name: 'Morro', color: '#047857', element: 'Wind' },
+  { id: 'pythor', name: 'Pythor', color: '#7e22ce', element: 'Anacondrai' },
+  { id: 'cryptor', name: 'Gen. Cryptor', color: '#475569', element: 'Tech' },
+];
+
 export enum ActionState {
   IDLE = 'IDLE',
   RUNNING = 'RUNNING',
@@ -34,7 +49,7 @@ export interface PlayerState {
   energy: number; // For Spinjitzu
   maxEnergy: number;
   facing: 1 | -1; // 1 right, -1 left
-  color: NinjaColor;
+  color: string;
   actionState: ActionState;
   attackCooldown: number;
   frameTimer: number; // For animation visual
